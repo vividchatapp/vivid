@@ -1,27 +1,49 @@
 # Vivid Chat 🤖
 
-**Vivid Chat** is a Python-based Telegram chatvivid designed for high-flexibility roleplay and conversation management.  
-It works with vividh **local Ollama deployments** and **Ollama-hosted online models**, allowing flexible switching between local and remote inference.
+**Vivid Chat** is a Python-based Telegram chat bot program, vivid is designed for high-flexibility roleplay and conversation management.  
+It works with **local Ollama deployments** and **Ollama-hosted online models**, allowing flexible switching between local and remote inference.
 
 ---
 
 ## 📋 Prerequisites
+For any help with the prerequeistes below please use YouTube or Google Gemini, ChatGPT or your preferred LLM
+- **Python 3.10+**: Download and install from [python.org](https://www.python.org/downloads/).
 - An **Ollama account**: Sign up at [ollama.com](https://ollama.com).
 - A **Telegram account**: You must have Telegram installed on your phone or desktop to interact with the bot.
+- **Github**: if you want to `git clone` the repository, for your average user just download the zip file.
+
+*If you are worried that the zip file contains any malicious code, just drag it up to your favorite online chatbot and ask it.*
 
 ---
 
 ## �️ Installation
 REMEMBER: ChatGPT or Google Gemini is your friend if you get an error installing just copy and paste the error and ask what is wrong. Heck you can always upload the `vivid.py` file to them.
 
-### 1. Clone the Repository
+For quick installation guides for Windows or Linux / macOS please go to the [Vivid Chat App](https://www.youtube.com/@VividChatApp) YouTube channel.
+
+### 1. Clone the Repository or download the zip (below)
 ```bash
 git clone https://github.com/VividChat/vivid-chat
 cd vivid-chat
+
+
 ```
-
+### (for non developer types) download the zip
+![App Screenshot](assets/downloadzip.jpg)
 ---
+extract the zip 
 
+![APp SCreenshot](assets/extractzip.jpg)
+
+it will unzip to a folder called `vivid-main`
+
+![APp SCreenshot](assets/extractwindow.jpg)
+
+Rename the folder from `vivid-main` to `vivid`. Usually right click on the folder `vivid-main` choose rename (this is not mandtory just recommended)
+```bash
+rename vivid-main vivid
+
+```
 ### 2. Set Up a Virtual Environment (Recommended)
 
 #### Windows
@@ -63,8 +85,8 @@ pip install -r requirements.txt
    - `OLLAMA_LOCAL`: IP/host URLs for instances running on a local computer.
 ---
 
-### 5. Run/Restart the vivid
-Note you must be in the virtual environment `venv`, in order to run the vivid you should see something like `(venv)` prefixing your command prompt:
+### 5. Run/Restart vivid.py
+Note you must be in the virtual environment `venv`, in order to run vivid.py you should see something like `(venv)` prefixing your command prompt:
 
 Examples
 #### linux / macOS
@@ -116,16 +138,16 @@ or something similar
 
 ## 💾 Session & Context Management
 
-Vivid Chat automatically preserves conversations—even if the vivid crashes.
+Vivid Chat automatically preserves conversations—even if vivid.py crashes.
 
 - Active chat is continuously saved in the `chats/` folder
 - Session file format:
   `[vivid_PREFIX]_last_session.json`
 
-### Crash Recovery or vivid Restart
-If the vivid crashes or you restart vividpy, the vivid will load your last session automatically.
+### Crash Recovery or Vivid Restart
+If vivid.py crashes or you restart vivid.py, vivid.py will load your last session automatically.
 
-So the vivid remembers the provider, model, role, character(s), scene(s) and the whole conversation history (context).
+So vivid.py will remember the provider, model, role, character(s), scene(s) and the whole conversation history (context).
 These are all kept inside the session json.
 `[vivid_PREFIX]_last_session.json`
 
@@ -170,7 +192,7 @@ NOTE: commands documentation (this section) may not be the most up to date. For 
 - `.model pull [name]` — (Ollama) Download a new model.
 - `.model test` — (Ollama Online) Test models for subscription requirements and save status.
 - `.model rm [n]` — (Ollama) Delete a model by index.
-- `.model loaded` — (Ollama) Sync the vivid's current model with whatever is currently loaded in the provider's RAM.
+- `.model loaded` — (Ollama) Sync vivid's current model with whatever is currently loaded in the provider's RAM.
 - `.mf` / `.modelsfiltered` [n/next/prev] — (Ollama Online) List, select, or cycle standard models that do not require an account upgrade.
 - `.think` — Toggle "Think Mode" (adds thinking logic/parameters for supported models).
 - `.verbose` / `.v` — Toggle display of latency and message metadata.
@@ -185,7 +207,7 @@ NOTE: commands documentation (this section) may not be the most up to date. For 
 - `.recap [n]` — Summarize the current conversation history using a template from `recap.json`.
 - `.story` / `.store` save [name] — Save all assistant messages from the current chat to a text file.
 - `.ask [text]` — Ask a question about the conversation history without affecting context.
-- `.del` — Delete the last user message and the vivid's response from memory.
+- `.del` — Delete the last user message and vivid's response from memory.
 - `.resend` — Remove the last user message and re-trigger generation.
 - `.context [n]` — View or set the sliding context window limit (number of messages sent to LLM).
 - `.last [n]` / `.l [n]` — Show the last `n` messages from the chat history (default 3).
@@ -298,8 +320,7 @@ This allows you to:
 
 -   Context is managed locally, so switching accounts does **not** reset
     your conversation\
--   You don't need a powerful machine --- the vivid mainly acts as a
-    controller
+-   You don't need a powerful machine --- vivid mainly acts as a controller
 
 Example setup:
 
@@ -313,7 +334,7 @@ Example setup:
 -   Create Ollama account(s)\
 -   Generate API key(s)\
 -   Add them to `env.json`\
--   Run the vivid\
+-   Run vivid.py\
 -   Switch accounts if limits are reached
 
 ### Running locally 

@@ -123,12 +123,12 @@ or you can run these wrapper commands that start venv automatically (easier to d
 
 #### Windows
 ```powershell dos
-run_vivid.bat
+vwin.bat
 ```
 
 For linux / macOS make sure you make `run_vivid.sh` executable by typing:
 ```bash
-chmod +x run_vivid.sh
+chmod +x vlin.sh
 ```
 this only has to be done once. If you do not do this you probably get the error
 `-bash: ./run_vivid.sh: Permission denied`
@@ -137,7 +137,7 @@ or something similar
 
 #### Linux / macOS
 ```bash
-./run_vivid.sh
+./vlin.sh
 ```
 ---
 

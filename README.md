@@ -30,7 +30,7 @@ For quick installation guides for Windows or Linux / macOS please go to the [Viv
 git clone https://github.com/vividchatapp/vivid
 cd vivid
 ```
-### (for non developer types) download the zip
+### (for non developer types or Windows systems) download the zip
 ![App Screenshot](assets/downloadzip.jpg)
 ---
 extract the zip 

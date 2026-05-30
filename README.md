@@ -17,9 +17,13 @@ For any help with the prerequeistes below please use YouTube or Google Gemini, C
 ---
 
 ## �️ Installation
-REMEMBER: ChatGPT or Google Gemini is your friend if you get an error installing just copy and paste the error and ask what is wrong. Heck you can always upload the `vivid.py` file to them.
+REMEMBER: ChatGPT or Google Gemini is your friend if you get an error installing just copy and paste the error and ask what is wrong. Heck you can always upload the `vivid.py` file to your favourite chatbot to get help.
 
 For quick installation guides for Windows or Linux / macOS please go to the [Vivid Chat App](https://www.youtube.com/@VividChatApp) YouTube channel.
+
+### 🎥 OS-Specific Installation Guides
+- [▶️ Windows Installation Guide](https://www.youtube.com/@VividChatApp)
+- [▶️ Linux / macOS Installation Guide](https://www.youtube.com/@VividChatApp)
 
 ### 1. Clone the Repository or download the zip (below)
 ```bash

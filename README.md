@@ -10,7 +10,7 @@ For any help with the prerequeistes below please use YouTube or Google Gemini, C
 - **Python 3.10+**: Download and install from [python.org](https://www.python.org/downloads/). To verify your installation, run `python --version` in a Windows Command Prompt or a Linux terminal.
 - An **Ollama account**: Sign up at [ollama.com](https://ollama.com).
 - A **Telegram account**: You must have Telegram installed on your phone or desktop to interact with the bot.
-- **GitHub**: If you want to *git clone* the repository; for the average user, just ***download the ZIP file***. If you are using a **Raspberry Pi**, you should check if **Git** is installed with `git --version`.
+- **GitHub**: If you want to *git clone* the repository; for the average user (mostly Windows 10/11 users), just ***download the ZIP file***. If you are using a **Raspberry Pi**, you should check if **Git** is installed with `git --version`.
 
 *If you are worried that the zip file contains any malicious code, just drag it up to your favorite online chatbot and ask it.*
 

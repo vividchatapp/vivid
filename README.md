@@ -70,15 +70,17 @@ pip install -r requirements.txt
 ---
 
 ### 4. Configuration
-Copy the sample environment file to env.json:
+Copy the sample environment file to env.json and edit it as follows:
 
    **Windows**
    ```powershell
    copy env.json.sample env.json
+   notepad env.json
    ```
    **Linux / macOS**
    ```bash
    cp env.json.sample env.json
+   nano env.json
    ```
 Update the env.json file with the following information:
   - `TELEGRAM_USER_ID`: Your numeric Telegram User ID (get this from `@userinfobot`).

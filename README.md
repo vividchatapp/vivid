@@ -1,4 +1,6 @@
-# Vivid Chat 🤖
+<img src="assets/logo.png" alt="Logo" width="300">
+
+# Vivid Chat 
 
 **Vivid Chat** is a Python-based Telegram chat bot program, vivid is designed for high-flexibility roleplay and conversation management.  
 It works with **local Ollama deployments** and **Ollama-hosted online models**, allowing flexible switching between local and remote inference.
@@ -35,11 +37,11 @@ cd vivid
 ---
 extract the zip 
 
-![APp SCreenshot](assets/extractzip.jpg)
+![App SCreenshot](assets/extractzip.jpg)
 
 it will unzip to a folder called `vivid-main`
 
-![APp SCreenshot](assets/extractwindow.jpg)
+![App SCreenshot](assets/extractwindow.jpg)
 
 Rename the folder from `vivid-main` to `vivid`. Usually right click on the folder `vivid-main` choose rename (this is not mandtory just recommended)
 ```bash

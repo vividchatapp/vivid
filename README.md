@@ -163,7 +163,7 @@ NOTE: commands documentation (this section) may not be the most up to date. For 
 - `.scene save [name] [text]` — Save or update a scene description file.
 
 ### 🧠 Providers & Models
-- `.provider` / `.p` — List configured Ollama (local/online) and Gemini providers.
+- `.provider` / `.p` — List configured Ollama (local/online) providers.
 - `.provider [n]` — Switch to a different provider.
 - `.model` / `.m` — List models available on the current provider.
 - `.model [n]` — Switch to a model by index.

@@ -1,7 +1,7 @@
 """
 Telegram Bot for Interactive LLM Roleplay and Conversation Management.
 
-Supports multiple Ollama instances and Google Gemini API keys.
+Supports multiple Ollama instances.
 Features include dynamic role switching, conversation saving/loading,
 context summarization (recap), and an 'Edit & Resend' workflow.
 """
@@ -12,7 +12,6 @@ import json
 import sys
 import asyncio
 from pathlib import Path
-from google import genai
 from telegram import Update
 from telegram.ext import Application, PrefixHandler, MessageHandler, filters, ContextTypes
 from ollama import AsyncClient
@@ -95,11 +94,10 @@ STORIES_DIR.mkdir(parents=True, exist_ok=True)
 # --- CLIENTS ---
 OLLAMA_LOCAL = CONFIG.get("OLLAMA_LOCAL", [])
 OLLAMA_ONLINE = CONFIG.get("OLLAMA_ONLINE", [])
-GEMINI_KEYS_RAW = CONFIG.get("GEMINI_API_KEYS", [])
 
 ollama_clients = {}
 provider_display_info = {}
-PROVIDER_CATEGORIES = {"local": [], "online": [], "gemini": []}
+PROVIDER_CATEGORIES = {"local": [], "online": []}
 
 for i, cfg in enumerate(OLLAMA_LOCAL):
     name = f"local_{i}"
@@ -120,22 +118,8 @@ for i, cfg in enumerate(OLLAMA_ONLINE):
     ollama_clients[name] = AsyncClient(host=url, headers=headers, timeout=None)
     PROVIDER_CATEGORIES["online"].append(name)
     provider_display_info[name] = display
-gemini_clients = []
-for i, cfg in enumerate(GEMINI_KEYS_RAW):
-    name = f"gemini_{i}"
-    if isinstance(cfg, dict):
-        key = cfg.get("key")
-        # Use the description from JSON, or default to "Gemini i+1"
-        display = cfg.get("description", f"Gemini API {i+1}")
-    else:
-        key = cfg
-        display = f"Gemini API {i+1}"
 
-    gemini_clients.append(genai.Client(api_key=key))
-    PROVIDER_CATEGORIES["gemini"].append(name)
-    provider_display_info[name] = display
-
-AI_PROVIDERS = PROVIDER_CATEGORIES["local"] + PROVIDER_CATEGORIES["online"] + PROVIDER_CATEGORIES["gemini"]
+AI_PROVIDERS = PROVIDER_CATEGORIES["local"] + PROVIDER_CATEGORIES["online"]
 
 # --- GLOBAL STATE ---
 # Stores {provider_name: {model_name: "good"|"bad"|"unknown"}} for Ollama online models
@@ -224,33 +208,12 @@ async def generate_response(messages, options=None):
     if options is None:
         options = GENERATION_OPTIONS
 
-    if "gemini" in CURRENT_PROVIDER:
-        p_idx = int(CURRENT_PROVIDER.split("_")[1])
-        client = gemini_clients[p_idx]
-
-        # Extract system instruction and format history for Gemini
-        system_instruction = None
-        gemini_history = []
-        for m in messages:
-            if m["role"] == "system":
-                system_instruction = m["content"]
-            else:
-                role = "model" if m["role"] == "assistant" else "user"
-                gemini_history.append({"role": role, "parts": [{"text": m["content"]}]})
-
-        resp = await client.aio.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=gemini_history,
-            config={'system_instruction': system_instruction} if system_instruction else None
-        )
-        return resp.text
-    else:
-        client = ollama_clients[CURRENT_PROVIDER]
-        call_opts = {**options}
-        if THINK_MODE:
-            call_opts["think"] = True
-        res = await client.chat(model=CURRENT_MODEL, messages=messages, options=call_opts)
-        return res.message.content
+    client = ollama_clients[CURRENT_PROVIDER]
+    call_opts = {**options}
+    if THINK_MODE:
+        call_opts["think"] = True
+    res = await client.chat(model=CURRENT_MODEL, messages=messages, options=call_opts)
+    return res.message.content
 
 def load_from_json(name):
     """
@@ -441,7 +404,7 @@ async def m_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def list_providers(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Lists all configured Ollama and Gemini providers with category headers."""
+    """Lists all configured Ollama providers with category headers."""
     text = "🌐 **AI Providers**\n\n"
     idx = 1
     
@@ -462,15 +425,6 @@ async def list_providers(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"{idx}. `{desc}` {active}\n"
             idx += 1
         text += "\n"
-
-    if PROVIDER_CATEGORIES["gemini"]:
-        text += "💎 **Gemini**\n"
-        for p in PROVIDER_CATEGORIES["gemini"]:
-            active = "✅" if p == CURRENT_PROVIDER else ""
-            desc = provider_display_info.get(p, "")
-            text += f"{idx}. `{desc}` {active}\n"
-            idx += 1
-            
     await reply_and_log(update, text)
 
 async def switch_provider(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -490,10 +444,6 @@ async def list_models(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Headers and model names are wrapped in backticks to prevent Telegram
     from interpreting underscores as Markdown or auto-detecting URLs.
     """
-    if "gemini" in CURRENT_PROVIDER:
-        await reply_and_log(update, "☁️ Gemini models are API-based.")
-        return
-
     if CURRENT_PROVIDER not in ollama_clients:
         await reply_and_log(update, "⚠️ No active Ollama provider selected.")
         return
@@ -544,10 +494,6 @@ async def switch_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global CURRENT_MODEL
     global CACHED_MODELS
     
-    if "gemini" in CURRENT_PROVIDER:
-        await reply_and_log(update, "☁️ Models for Gemini must be set by name.")
-        return
-
     if CURRENT_PROVIDER not in ollama_clients:
         await reply_and_log(update, "⚠️ No active Ollama provider selected.")
         return

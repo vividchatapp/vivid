@@ -10,7 +10,7 @@ For any help with the prerequeistes below please use YouTube or Google Gemini, C
 - **Python 3.10+**: Download and install from [python.org](https://www.python.org/downloads/).
 - An **Ollama account**: Sign up at [ollama.com](https://ollama.com).
 - A **Telegram account**: You must have Telegram installed on your phone or desktop to interact with the bot.
-- **Github**: if you want to `git clone` the repository, for your average user just download the zip file.
+- **GitHub**: If you want to *git clone* the repository; for the average user, just ***download the ZIP file***. If you are using a **Raspberry Pi**, you should check if **Git** is installed with `git --version`.
 
 *If you are worried that the zip file contains any malicious code, just drag it up to your favorite online chatbot and ask it.*
 
@@ -27,10 +27,8 @@ For quick installation guides for Windows or Linux / macOS please go to the [Viv
 
 ### 1. Clone the Repository or download the zip (below)
 ```bash
-git clone https://github.com/VividChat/vivid-chat
-cd vivid-chat
-
-
+git clone https://github.com/vividchatapp/vivid
+cd vivid
 ```
 ### (for non developer types) download the zip
 ![App Screenshot](assets/downloadzip.jpg)
@@ -46,7 +44,6 @@ it will unzip to a folder called `vivid-main`
 Rename the folder from `vivid-main` to `vivid`. Usually right click on the folder `vivid-main` choose rename (this is not mandtory just recommended)
 ```bash
 rename vivid-main vivid
-
 ```
 ### 2. Set Up a Virtual Environment (Recommended)
 
@@ -68,7 +65,6 @@ source venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
-
 ---
 
 ### 4. Configuration
@@ -95,11 +91,11 @@ Note you must be in the virtual environment `venv`, in order to run vivid.py you
 Examples
 #### linux / macOS
 ```
-(venv) user@raspberrypi:~/vivid-chat $
+(venv) user@raspberrypi:~/vivid $
 ```
 #### windows
 ```
-(venv) PS C:\Dev\vivid-chat>  
+(venv) PS C:\Dev\vivid>  
 ```
 
 If you don't see the `(venv)` prefix, you can activate the virtual environment by typing the commands below to activate it:

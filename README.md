@@ -62,13 +62,16 @@ source venv/bin/activate
 ---
 
 ### 3. Install Dependencies
+> **Note:** Once the virtual environment is activated, your command prompt (Windows) or terminal (Linux/macOS) should be prefixed with `(venv)`. This indicates that you are working within the isolated virtual environment. See Section 5 for visual examples of how the prompt should look.
+
 ```bash
 pip install -r requirements.txt
 ```
 ---
 
 ### 4. Configuration
-1. Copy the sample environment file:
+Copy the sample environment file to env.json:
+
    **Windows**
    ```powershell
    copy env.json.sample env.json
@@ -77,7 +80,7 @@ pip install -r requirements.txt
    ```bash
    cp env.json.sample env.json
    ```
-2. Update:
+Update the env.json file with the following information:
   - `TELEGRAM_USER_ID`: Your numeric Telegram User ID (get this from `@userinfobot`).
    - `BOT_PREFIX`: The default bot identifier (must match a key in `TELEGRAM_TOKENS` this can be anything you want, default 'vivid').
    - `TELEGRAM_TOKENS`: A map of prefixes to bot tokens (get tokens from `@BotFather` using  `/newbot` or `/mybots` command).

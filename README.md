@@ -84,7 +84,7 @@ Copy the sample environment file to env.json and edit it as follows:
    ```
 Update the env.json file with the following information:
   - `TELEGRAM_USER_ID`: Your numeric Telegram User ID (get this from `@userinfobot`).
-   - `BOT_PREFIX`: The default bot identifier (must match a key in `TELEGRAM_TOKENS` this can be anything you want, default 'vivid').
+   - `BOT_PREFIX`: The default bot identifier (must match a key in `TELEGRAM_TOKENS` this can be anything you want, default 'vivid1').
    - `TELEGRAM_TOKENS`: A map of prefixes to bot tokens (get tokens from `@BotFather` using  `/newbot` or `/mybots` command).
    - `OLLAMA_ONLINE`: API keys and descriptions for hosted Ollama-compatible services keys can be found at [https://ollama.com/settings/keys](https://ollama.com/settings/keys) choose `Add API key` button when it is generated paste it to the `api_key` field. You can have multiple keys but that would require multiple accounts. This is handy because Ollama online has usage limits, but since the data is stored on your local computer you can just select a different account to continue.
    - `OLLAMA_LOCAL`: IP/host URLs for instances running on a local computer.

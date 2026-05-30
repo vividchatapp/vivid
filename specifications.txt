@@ -1,0 +1,101 @@
+VIVID CHAT TECHNICAL SPECIFICATIONS
+===================================
+
+1. CORE ARCHITECTURE & INITIALIZATION
+-------------------------------------
+* Instance Multi-Tenancy: Driven by VIVID_PREFIX (CLI arg or env.json). Allows multiple bot instances on one machine.
+* Configuration: Loads from env.json. Supports path overrides for Windows/Linux environments.
+* Provider Support:
+    - Ollama (Local/Online): AsyncClient handling multiple host URLs and API keys.
+    - Gemini: genai.Client using Google API keys.
+* Persistence:
+    - Automatically loads 'last_session' on startup.
+    - Atomic Save Pattern: Writes to .tmp file then replaces target to prevent JSON corruption.
+    - Encoding: UTF-8 with ensure_ascii=False to preserve emojis/non-Latin text.
+
+2. COMMAND SYSTEM
+-----------------
+* Trigger: `PrefixHandler` captures '.' (dot) commands.
+* Command Lifecycle:
+    1. Input: User sends `.command`.
+    2. Identification: `reply_and_log` checks if the user message ID is already in history.
+    3. History Entry (User): The command text is added to `chat_history` with `is_command: True` and its Telegram `msg_ids`.
+    4. Execution: The command logic runs (e.g., toggling a setting or fetching a list).
+    5. Output: Bot responds. `reply_and_log` captures the response `msg_ids`, sets `is_command: True`, and appends it to history.
+    6. Persistence: `save_to_json("last_session")` is called immediately.
+* Metadata & Filtering:
+    - All commands and their outputs are tagged `is_command: True`.
+    - In both Chat and Story modes, `api_payload` construction filters these out so the LLM never sees the "meta-chatter" of command usage.
+* UI Syncing:
+    - Every entry in history tracks its corresponding Telegram message IDs.
+    - `context.bot.delete_message` is used to keep the Telegram screen in sync with the bot's memory during "clean" or "delete" operations.
+
+3. COMMAND BEHAVIORAL MAP
+-------------------------
+* Categorization & Impact:
+    - Meta Commands: .help, .status, .verbose, .trace, .context.
+    - Context Control: .clear (soft wipe), .clean (hard wipe + UI delete), .mode, .del, .resend.
+    - Narrative Assets: .role, .char, .scene.
+    - Utility: .ask (OOB question), .recap (summarization), .last (history view), .msg (predefined messages).
+
+4. MEMORY & CONTEXT MANAGEMENT
+------------------------------
+* Storage: chat_history list of dicts.
+* Metadata Schema:
+    - role: (system/user/assistant)
+    - content: (text string)
+    - msg_ids: (list of Telegram IDs for UI deletion)
+    - is_command: (bool - used to filter meta-chatter from LLM context)
+    - incoming: (bool - tracks user inputs)
+* Sliding Window: Logic slices history based on CONTEXT_LIMIT, skipping the system prompt at index 0 and taking the last N messages.
+* Sanitization: Before sending to LLM, history is mapped to api_payload (removing msg_ids and is_command) to meet strict API schema requirements.
+
+5. DYNAMIC SYSTEM PROMPT CONSTRUCTION
+-------------------------------------
+Every LLM prompt is prefixed with a composite System Instruction:
+1. Role Profile: Content from /roles/[name].txt.
+2. Active Characters: Appends /characters/[name].txt for every enabled character.
+3. Active Scenes: Appends /scenes/[name].txt for every enabled scene setting.
+
+6. EXECUTION MODES
+------------------
+* CHAT MODE:
+    - Logic: [System Prompt] + [History Subset (filtered for is_command=False)].
+    - Behavior: AI sees a standard conversation thread.
+* STORY MODE:
+    - Logic: [System Prompt] + [Past Assistant Messages (filtered for is_command=False)] + [Current User Message].
+    - Behavior: AI never sees previous user prompts, creating a "narrative-only" flow where the AI only responds to the current instruction in the context of its own previous output.
+
+7. I/O LOGIC & TRACING
+----------------------
+* Message Splitting: Responses > 4000 characters are split into multiple Telegram messages; all resulting IDs are stored in history.
+* TRACE MODE:
+    - writes [prefix]_last_payload.json (sent to LLM).
+    - writes [prefix]_last_response.json (received from LLM).
+    - helps debug malformed JSON or prompt-injection issues.
+
+8. SPECIAL WORKFLOWS
+--------------------
+* .ask (Out of Band):
+    - Replaces current system persona with a neutral "Helpful Assistant" instruction.
+    - Sends history but does not save the question/answer to the session history.
+* .resend:
+    - Finds last 'user' entry.
+    - Removes user prompt and subsequent assistant response from history.
+    - Physically deletes the assistant response from the Telegram UI.
+    - Re-injects the prompt into handle_message.
+* .clear vs .clean:
+    - .clear (Memory Wipe): Removes all user messages and command outputs from `chat_history`. Preserves Assistant narrative. Telegram UI is unaffected.
+    - .clean (UI + Memory Wipe): Identical to `.clear`, but also iterates through `msg_ids` of removed entries to physically delete them from the Telegram chat.
+
+9. RECAP & SUMMARIZATION
+------------------------
+* Uses recap.json or roles_summary_prompts.json as "Instruction Templates".
+* Feeds the target content (history or role file) to the LLM.
+* Outputs are flagged as is_command=True so they are removed during subsequent .clean operations.
+
+10. ERROR HANDLING
+-----------------
+* Network: 60s timeouts for Telegram API.
+* Provider: Try/Except blocks for LLM calls with Telegram-side error reporting.
+* Path Safety: exist_ok=True on directory creation and expanded user paths.

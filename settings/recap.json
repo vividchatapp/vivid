@@ -1,0 +1,12 @@
+[
+  "Provide a cohesive narrative summary of the following discussion. Describe the natural progression of the topics, explaining how the initial ideas evolved into the final conclusions. Do not refer to the participants as 'User' or 'Assistant'; focus entirely on the subject matter.",
+  "Synthesize this exchange into a two-paragraph executive briefing. The first paragraph should state the primary technical or conceptual topics addressed. The second should outline the final decisions made and any remaining tasks. Avoid role-based attributions.",
+  "Analyze the following history and group the information into its core themes. Use prose to explain the significance of each concept discussed. Focus on the 'what' and 'why' of the ideas rather than 'who' said them.",
+  "Draft a technical retrospective of this session. Detail the logic behind the software or design decisions mentioned and describe the obstacles encountered and how they were navigated, speaking only to the technical content.",
+  "Write a detailed narrative arc of the conversation. Highlight the most significant turning points in the logic and explain the final consensus reached on the primary project without mentioning the dialogue structure.",
+  "Create a 'State of the Project' summary based on this history. Describe the current progress, the rationale for recent changes, and the specific goals identified for the next phase of development.",
+  "Provide a thematic deep-dive into the discussion. Instead of a chronological account, explain the relationship between the different technical and creative ideas explored in a single, flowing passage.",
+  "Summarize the troubleshooting and problem-solving process found in this text. Focus on the specific errors or design challenges addressed and the logic used to resolve them, keeping the tone professional and informative.",
+  "Describe the evolution of the creative concepts mentioned in this history. Focus on the refinement of anatomical details and stylistic choices, explaining the final vision without attributing specific lines to specific roles.",
+  "Generate a comprehensive prose summary that captures the nuance and sentiment of the discussion. Focus on the depth of the exploration and the key insights gained, ensuring the text reads as a standalone report."
+]

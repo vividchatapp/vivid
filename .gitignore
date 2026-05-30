@@ -1,0 +1,19 @@
+# Secrets & Config
+.env
+env.json
+env.paths.json
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Data
+chats/*
+!chats/README.md
+
+characters/*
+!characters/README.md
+
+context/*
+!context/README.md

@@ -8,7 +8,7 @@ It works with **local Ollama deployments** and **Ollama-hosted online models**, 
 ---
 
 ## 📋 Prerequisites
-For any help with the prerequeistes below please use YouTube or Google Gemini, ChatGPT or your preferred LLM
+For assistance with the prerequisites below, you can refer to YouTube or consult an AI like Google Gemini or ChatGPT.
 - **Python 3.10+**: Download and install from [python.org](https://www.python.org/downloads/). To verify your installation, run `python --version` in a Windows Command Prompt or a Linux terminal.
 - An **Ollama account**: Sign up at [ollama.com](https://ollama.com).
 - A **Telegram account**: You must have Telegram installed on your phone or desktop to interact with the bot.
@@ -18,8 +18,8 @@ For any help with the prerequeistes below please use YouTube or Google Gemini, C
 
 ---
 
-## �️ Installation
-REMEMBER: ChatGPT or Google Gemini is your friend if you get an error installing just copy and paste the error and ask what is wrong. Heck you can always upload the `vivid.py` file to your favourite chatbot to get help.
+## 🛠️ Installation
+**Tip:** If you encounter errors during installation, ChatGPT and Google Gemini are excellent resources. Simply copy and paste the error message or upload the `vivid.py` file to your preferred AI assistant for quick troubleshooting.
 
 For quick installation guides for Windows or Linux / macOS please go to the [Vivid Chat App](https://www.youtube.com/@VividChatApp) YouTube channel.
 
@@ -43,7 +43,7 @@ it will unzip to a folder called `vivid-main`
 
 ![App SCreenshot](assets/extractwindow.jpg)
 
-Rename the folder from `vivid-main` to `vivid`. Usually right click on the folder `vivid-main` choose rename (this is not mandtory just recommended)
+Rename the folder from `vivid-main` to `vivid`. Right-click the folder and select **Rename** (this is optional but recommended).
 ```bash
 rename vivid-main vivid
 ```

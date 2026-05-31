@@ -86,7 +86,7 @@ Copy the sample environment file to env.json and edit it as follows:
    ```
 Update the env.json file with the following information:
   - `TELEGRAM_USER_ID`: Your numeric Telegram User ID (get this from `@userinfobot`).
-   - `BOT_PREFIX`: The default bot identifier (must match a key in `TELEGRAM_TOKENS` this can be anything you want, default 'vivid1').
+   - `VIVID_PREFIX`: The default bot identifier (must match a key in `TELEGRAM_TOKENS` this can be anything you want, default 'vivid1').
    - `TELEGRAM_TOKENS`: A map of prefixes to bot tokens (get tokens from `@BotFather` using  `/newbot` or `/mybots` command).
    - `OLLAMA_ONLINE`: API keys and descriptions for hosted Ollama-compatible services keys can be found at [https://ollama.com/settings/keys](https://ollama.com/settings/keys) choose `Add API key` button when it is generated paste it to the `api_key` field. You can have multiple keys but that would require multiple accounts. This is handy because Ollama online has usage limits, but since your chat data is stored on your local computer you can just select a different account to continue.
    - `OLLAMA_LOCAL`: IP/host URLs for instances running on a local computer.
@@ -149,14 +149,14 @@ Vivid Chat automatically preserves conversations—even if vivid.py crashes.
 
 - Active chat is continuously saved in the `chats/` folder
 - Session file format:
-  `[vivid_PREFIX]_last_session.json`
+  `[VIVID_PREFIX]_last_session.json`
 
 ### Crash Recovery or Vivid Restart
 If vivid.py crashes or you restart vivid.py, vivid.py will load your last session automatically.
 
 So vivid.py will remember the provider, model, role, character(s), scene(s) and the whole conversation history (context).
 These are all kept inside the session json.
-`[vivid_PREFIX]_last_session.json`
+`[VIVID_PREFIX]_last_session.json`
 
 ---
 

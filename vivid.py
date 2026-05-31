@@ -353,7 +353,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• `.model rm [n]` - Remove a model\n"
         "• `.model loaded` - Sync with RAM\n"
         "• `.think` - Toggle Think Mode\n\n"
-        "• `.llmcontext [nk]` - Set/show model context window (e.g. 8k)\n\n"
+        "• `.llmctx [nk]` - Set/show model context window (e.g. 8k)\n\n"
         "**💾 Conversation & Chats**\n"
         "• `.chat save [name]` - Save conversation\n"
         "• `.chat load [name]` - Load conversation\n"
@@ -379,7 +379,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• `.verbose` - Toggle Verbose Status\n"
         "• `.trace [on/off]` - Write payloads to context folder\n"
         "• `.lazy` - Toggle Lazy Mode (commands without dots)\n"
-        "**Synonyms:** `.r`=.role, `.rs`=.rolesummary, `.p`=.provider, `.m`=.model, `.s`=.status, `.h`=.help, `.c`=.chat, `.cl`=.clean, `.mf`=.modelsfiltered, `.sc`=.scene, `.l`=.last, `.mo`=.mode, `.lz`=.lazy, `.mc`=.llmcontext"
+        "**Synonyms:** `.r`=.role, `.rs`=.rolesummary, `.p`=.provider, `.m`=.model, `.s`=.status, `.h`=.help, `.c`=.chat, `.cl`=.clean, `.mf`=.modelsfiltered, `.sc`=.scene, `.l`=.last, `.mo`=.mode, `.lz`=.lazy, `.mc`=.llmctx"
     )
     await reply_and_log(update, help_text)
 
@@ -1669,7 +1669,7 @@ LAZY_COMMAND_MAP = {
     "status": status_command, "s": s_command,
     "resend": resend_last_message, "char": char_command,
     "scene": scene_command, "sc": scene_command,
-    "llmcontext": llmcontext_command, "mc": llmcontext_command, "mcontext": llmcontext_command
+    "llmctx": llmcontext_command, "mc": llmcontext_command, "mcontext": llmcontext_command
 }
 
 async def handle_failed_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1736,7 +1736,7 @@ def main():
     app.add_handler(PrefixHandler(".","status", status_command))
     app.add_handler(PrefixHandler(".","s", s_command))
     app.add_handler(PrefixHandler(".", "resend", resend_last_message))
-    app.add_handler(PrefixHandler(".", "llmcontext", llmcontext_command))
+    app.add_handler(PrefixHandler(".", "llmctx", llmcontext_command))
     app.add_handler(PrefixHandler(".", "mc", llmcontext_command))
     app.add_handler(PrefixHandler(".", "mcontext", llmcontext_command))
     app.add_handler(PrefixHandler(".","char", char_command))

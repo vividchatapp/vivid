@@ -202,6 +202,7 @@ NOTE: commands documentation (this section) may not be the most up to date. For 
 - `.model loaded` — (Ollama) Sync vivid's current model with whatever is currently loaded in the provider's RAM.
 - `.mf` / `.modelsfiltered` [n/next/prev] — (Ollama Online) List, select, or cycle standard models that do not require an account upgrade.
 - `.think` — Toggle "Think Mode" (adds thinking logic/parameters for supported models).
+- `.llmctx [nk]` — Set or show the model context window size (e.g., 8k, 32k).
 - `.verbose` / `.v` — Toggle display of latency and message metadata.
 
 ### 💾 Conversation & Chats

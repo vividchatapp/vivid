@@ -104,9 +104,11 @@ for i, cfg in enumerate(OLLAMA_LOCAL):
     is_dict = isinstance(cfg, dict)
     url = cfg.get("url") if is_dict else cfg
     display = cfg.get("description", url) if is_dict else url
+    show = cfg.get("show_on_provider_list", True) if is_dict else True
     ollama_clients[name] = AsyncClient(host=url, timeout=None)
-    PROVIDER_CATEGORIES["local"].append(name)
-    provider_display_info[name] = display
+    if show:
+        PROVIDER_CATEGORIES["local"].append(name)
+        provider_display_info[name] = display
 
 for i, cfg in enumerate(OLLAMA_ONLINE):
     name = f"online_{i}"
@@ -114,10 +116,12 @@ for i, cfg in enumerate(OLLAMA_ONLINE):
     url = cfg.get("url", "https://ollama.com") if is_dict else cfg
     display = cfg.get("description", url) if is_dict else url
     api_key = cfg.get("api_key") if is_dict else None
+    show = cfg.get("show_on_provider_list", True) if is_dict else True
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else None
     ollama_clients[name] = AsyncClient(host=url, headers=headers, timeout=None)
-    PROVIDER_CATEGORIES["online"].append(name)
-    provider_display_info[name] = display
+    if show:
+        PROVIDER_CATEGORIES["online"].append(name)
+        provider_display_info[name] = display
 
 AI_PROVIDERS = PROVIDER_CATEGORIES["local"] + PROVIDER_CATEGORIES["online"]
 

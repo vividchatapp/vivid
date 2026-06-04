@@ -126,26 +126,6 @@ AI_PROVIDERS = PROVIDER_CATEGORIES["local"] + PROVIDER_CATEGORIES["online"]
 FILTERED_OLLAMA_MODELS_STATUS = {}
 
 # --- HELPERS ---
-def load_messages():
-    """Loads predefined messages from settings/messages.json."""
-    path = SETTINGS_DIR / "messages.json"
-    if path.exists():
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"⚠️ Warning: Failed to load messages.json: {e}")
-    return []
-
-def save_messages(msgs):
-    """Saves the list of predefined messages to settings/messages.json."""
-    path = SETTINGS_DIR / "messages.json"
-    try:
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(msgs, f, indent=4, ensure_ascii=False)
-    except Exception as e:
-        print(f"❌ Error saving messages.json: {e}")
-
 def load_ollama_models_status():
     """Loads the ollama_models.json file from the settings directory."""
     global FILTERED_OLLAMA_MODELS_STATUS
@@ -276,6 +256,24 @@ async def reply_and_log(update: Update, text: str, is_command=True):
     })
     save_to_json("last_session")
 
+async def reply_transient(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, delay: int = 5):
+    """Sends a message that deletes itself after a delay and is NOT logged to history."""
+    try:
+        # Physically remove the trigger command from the Telegram screen for a clean UI
+        try: await update.message.delete()
+        except: pass
+        
+        sent_msg = await update.message.reply_text(text, parse_mode='Markdown')
+        async def _delete():
+            await asyncio.sleep(delay)
+            try:
+                await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=sent_msg.message_id)
+            except:
+                pass
+        asyncio.create_task(_delete())
+    except Exception as e:
+        print(f"⚠️ Failed to send transient reply: {e}")
+
 def get_role_content(role_name):
     """
     Reads the persona/role definition from a .txt file.
@@ -367,13 +365,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• `.resend` - Resend last user message\n"
         "• `.context [n]` - Set/show limit\n"
         "• `.last [n]` - Show last n messages (default 3)\n\n"
-        "**📝 Predefined Messages**\n"
-        "• `.msg` - List messages\n"
-        "• `.msg [n]` - Send message n to AI\n"
-        "• `.msg add [text]` - Save new message\n"
-        "• `.msg del [n]` - Delete message n\n"
-        "• `.msg edit [n]` - Get message to edit\n"
-        "• `.msg save [n] [text]` - Update message n\n\n"
         "**⚙️ Status & Shortcuts**\n"
         "• `.status` - Show current settings\n"
         "• `.verbose` - Toggle Verbose Status\n"
@@ -434,7 +425,7 @@ async def switch_provider(update: Update, context: ContextTypes.DEFAULT_TYPE):
         index = int(context.args[0]) - 1
         CURRENT_PROVIDER = AI_PROVIDERS[index]
         display = provider_display_info.get(CURRENT_PROVIDER, CURRENT_PROVIDER)
-        await reply_and_log(update, f"🚀 Using: `{display}`")
+        await reply_transient(update, context, f"🚀 Using: `{display}`")
     except:
         await reply_and_log(update, "❌ Usage: `.provider [n]`")
 
@@ -513,7 +504,7 @@ async def switch_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
             resp = await client.ps()
             if hasattr(resp, 'models') and resp.models:
                 CURRENT_MODEL = resp.models[0].model
-                await reply_and_log(update, f"🔄 **Syncing:** Now using `{CURRENT_MODEL}` (currently in RAM).")
+                await reply_transient(update, context, f"🔄 **Syncing:** Now using `{CURRENT_MODEL}`.")
             else:
                 display = provider_display_info.get(CURRENT_PROVIDER, CURRENT_PROVIDER)
                 await reply_and_log(update, f"ℹ️ No models loaded in RAM on `{display}`.")
@@ -542,7 +533,7 @@ async def switch_model(update: Update, context: ContextTypes.DEFAULT_TYPE):
             CACHED_MODELS = [m.model for m in models]
             
         CURRENT_MODEL = CACHED_MODELS[index]
-        await reply_and_log(update, f"🧠 Switched to: `{CURRENT_MODEL}`")
+        await reply_transient(update, context, f"🧠 Switched to: `{CURRENT_MODEL}`")
     except:
         await reply_and_log(update, "❌ Invalid command or index. Use `.model` for options.")
 
@@ -614,11 +605,11 @@ async def reload_role_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     if chat_history:
         # 2. Replace the existing system message at index 0
         chat_history[0] = {"role": "system", "content": new_content}
-        await reply_and_log(update, f"🔄 Role `{CURRENT_ROLE}` reloaded from disk and updated in context.")
+        await reply_transient(update, context, f"🔄 Role `{CURRENT_ROLE}` reloaded.")
     else:
         # 3. If no history exists, initialize it with the reloaded role
         chat_history = [{"role": "system", "content": new_content}]
-        await reply_and_log(update, f"✨ Role `{CURRENT_ROLE}` loaded (new session started).")
+        await reply_transient(update, context, f"✨ Role `{CURRENT_ROLE}` reloaded.")
 
 async def r_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
    """Alias for role_command."""
@@ -676,7 +667,7 @@ async def role_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_history[0] = {"role": "system", "content": content}
         else:
             chat_history = [{"role": "system", "content": content}]
-        await reply_and_log(update, f"✅ Switched to `{CURRENT_ROLE}`. Context not cleared, use `.clear` to wipe memory.")
+        await reply_transient(update, context, f"✅ Switched to `{CURRENT_ROLE}`.")
 
         # Display role image if it exists
         for ext in [".jpg", ".jpeg", ".png"]:
@@ -700,22 +691,16 @@ async def chat_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     global chat_history
-    cmd_text = update.message.text.lower()
-    # Robust check for Lazy Mode compatibility
-    first_word = cmd_text.split()[0] if cmd_text.strip() else ""
-    is_clear = ".clear" in cmd_text or first_word == "clear"
-    is_clean = ".clean" in cmd_text or cmd_text.startswith(".cl") or first_word in ["clean", "cl"]
+    first_word = update.message.text.lower().split()[0] if update.message.text else ""
+    is_clear = first_word in [".clear", "clear"]
+    is_clean = first_word in [".clean", ".cl", "clean", "cl"]
 
     if is_clear or is_clean:
-        chat_id = update.effective_chat.id
-        # Physically delete the command message itself
-        try: await update.message.delete()
-        except: pass
-
-        # Physically delete messages from Telegram UI if .clean is used
         if is_clean:
-            for msg in chat_history[1:]:
-                for mid in msg.get("msg_ids", []):
+            chat_id = update.effective_chat.id
+            # Physically delete messages from Telegram UI (Bottom-to-Top)
+            for msg in reversed(chat_history[1:]):
+                for mid in reversed(msg.get("msg_ids", [])):
                     try: await context.bot.delete_message(chat_id=chat_id, message_id=mid)
                     except: pass
 
@@ -727,8 +712,8 @@ async def chat_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         save_to_json("last_session")
 
-        notice = "🧹 Chat and UI cleaned." if is_clean else "✨ Memory cleared (context)."
-        await reply_and_log(update, notice)
+        notice = "🧹 Chat and UI cleaned." if is_clean else "✨ Memory cleared."
+        await reply_transient(update, context, notice)
         return
 
     if not context.args:
@@ -931,7 +916,7 @@ async def toggle_think(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     THINK_MODE = not THINK_MODE
-    await reply_and_log(update, f"Think Mode: {'ON 🧠' if THINK_MODE else 'OFF ⚡'}")
+    await reply_transient(update, context, f"Think Mode: {'ON 🧠' if THINK_MODE else 'OFF ⚡'}")
 
 async def llmcontext_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Sets or shows the LLM context window (num_ctx). Requires 'k' suffix."""
@@ -951,7 +936,7 @@ async def llmcontext_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         num = int(val[:-1]) * 1024
         GENERATION_OPTIONS["num_ctx"] = num
         save_to_json("last_session")
-        await reply_and_log(update, f"✅ Model context window set to `{num}` ({val}).")
+        await reply_transient(update, context, f"✅ Model context window set to `{num}` ({val}).")
     except ValueError:
         await reply_and_log(update, "❌ Error: Invalid number format. Use e.g., 8k.")
 
@@ -962,7 +947,7 @@ async def toggle_verbose(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     VERBOSE_MODE = not VERBOSE_MODE
-    await reply_and_log(update, f"Verbose Mode: {'ON ✅' if VERBOSE_MODE else 'OFF ❌'}")
+    await reply_transient(update, context, f"Verbose Mode: {'ON ✅' if VERBOSE_MODE else 'OFF ❌'}")
 
 async def toggle_trace(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
@@ -980,7 +965,7 @@ async def toggle_trace(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         TRACE_MODE = not TRACE_MODE
         
-    await reply_and_log(update, f"Trace Mode: {'ON 📝' if TRACE_MODE else 'OFF ❌'}")
+    await reply_transient(update, context, f"Trace Mode: {'ON 📝' if TRACE_MODE else 'OFF ❌'}")
 
 
 async def s_command(update: Update, context: ContextTypes.DEFAULT_TYPE):   
@@ -1023,7 +1008,7 @@ async def mode_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     new_mode = context.args[0].lower()
     if new_mode in ["chat", "story"]:
         CURRENT_MODE = new_mode
-        await reply_and_log(update, f"✅ Mode switched to `{CURRENT_MODE}`. History preserved, but outgoing context will be filtered.")
+        await reply_transient(update, context, f"✅ Mode switched to `{CURRENT_MODE}`.")
     else:
         await reply_and_log(update, "❌ Invalid mode. Use `.mode chat` or `.mode story`.")
 
@@ -1117,7 +1102,7 @@ async def set_context_limit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await reply_and_log(update, "❌ Context limit must be at least 1.")
             return
         CONTEXT_LIMIT = new_limit
-        await reply_and_log(update, f"✅ Context limit changed to `{CONTEXT_LIMIT}` messages.")
+        await reply_transient(update, context, f"✅ Context limit changed to `{CONTEXT_LIMIT}` messages.")
     except ValueError:
         await reply_and_log(update, "❌ Usage: `.context [number]`")
 
@@ -1286,90 +1271,6 @@ async def last_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await reply_and_log(update, text)
 
-async def msg_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Manages predefined messages stored in settings/messages.json.
-    Usage: .msg (list), .msg [n] (send), .msg add [text], .msg del [n], .msg edit [n], .msg save [n] [text]
-    """
-    if update.effective_user.id != TELEGRAM_USER_ID:
-        return
-
-    msgs = load_messages()
-
-    if not context.args:
-        if not msgs:
-            await reply_and_log(update, "📝 No predefined messages found.")
-            return
-        
-        text = "📝 **Predefined Messages Library**\n---\n"
-        for i, m in enumerate(msgs):
-            preview = (m[:60] + '...') if len(m) > 60 else m
-            text += f"{i+1}. `{preview}`\n"
-        text += "\nUse `.msg [n]` to send, or `.msg add [text]` to save a new one."
-        await reply_and_log(update, text)
-        return
-
-    sub = context.args[0].lower()
-
-    if sub == "add" and len(context.args) > 1:
-        content = " ".join(context.args[1:])
-        msgs.append(content)
-        save_messages(msgs)
-        await reply_and_log(update, f"✅ Message added at index {len(msgs)}.")
-        return
-
-    if sub == "del" and len(context.args) > 1:
-        try:
-            idx = int(context.args[1]) - 1
-            if 0 <= idx < len(msgs):
-                removed = msgs.pop(idx)
-                save_messages(msgs)
-                await reply_and_log(update, f"🗑️ Deleted message index {idx+1}.")
-            else:
-                await reply_and_log(update, "❌ Invalid message index.")
-        except ValueError:
-            await reply_and_log(update, "❌ Usage: `.msg del [n]`")
-        return
-
-    if sub == "edit" and len(context.args) > 1:
-        try:
-            idx = int(context.args[1]) - 1
-            if 0 <= idx < len(msgs):
-                content = msgs[idx]
-                await update.message.reply_text(f".msg save {idx+1} {content}")
-            else:
-                await reply_and_log(update, "❌ Invalid message index.")
-        except ValueError:
-            await reply_and_log(update, "❌ Usage: `.msg edit [n]`")
-        return
-
-    if sub == "save" and len(context.args) > 2:
-        try:
-            idx = int(context.args[1]) - 1
-            if 0 <= idx < len(msgs):
-                msgs[idx] = " ".join(context.args[2:])
-                save_messages(msgs)
-                await reply_and_log(update, f"💾 Message {idx+1} updated.")
-            else:
-                await reply_and_log(update, "❌ Invalid message index.")
-        except ValueError:
-            await reply_and_log(update, "❌ Usage: `.msg save [n] [text]`")
-        return
-
-    if sub.isdigit():
-        try:
-            idx = int(sub) - 1
-            if 0 <= idx < len(msgs):
-                content = msgs[idx]
-                await handle_message(update, context, incoming_text=content)
-            else:
-                await reply_and_log(update, "❌ Invalid message index.")
-        except Exception as e:
-            await reply_and_log(update, f"❌ Failed to send message: {e}")
-        return
-
-    await reply_and_log(update, "❌ Unknown `.msg` command. Use `.msg add`, `.msg [n]`, `.msg del`, etc.")
-
 async def char_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Manages active characters. 
@@ -1436,10 +1337,10 @@ async def char_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action = context.args[1].lower() if len(context.args) > 1 else "on"
     if action == "on":
         if target not in ACTIVE_CHARACTERS: ACTIVE_CHARACTERS.append(target)
-        await reply_and_log(update, f"👤 `{target}` activated.")
+        await reply_transient(update, context, f"👤 `{target}` activated.")
     elif action == "off":
         if target in ACTIVE_CHARACTERS: ACTIVE_CHARACTERS.remove(target)
-        await reply_and_log(update, f"👤 `{target}` deactivated.")
+        await reply_transient(update, context, f"👤 `{target}` deactivated.")
 
     save_to_json("last_session")
 
@@ -1509,10 +1410,10 @@ async def scene_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action = context.args[1].lower() if len(context.args) > 1 else "on"
     if action == "on":
         if target not in ACTIVE_SCENES: ACTIVE_SCENES.append(target)
-        await reply_and_log(update, f"🎬 Scene `{target}` activated.")
+        await reply_transient(update, context, f"🎬 Scene `{target}` activated.")
     elif action == "off":
         if target in ACTIVE_SCENES: ACTIVE_SCENES.remove(target)
-        await reply_and_log(update, f"🎬 Scene `{target}` deactivated.")
+        await reply_transient(update, context, f"🎬 Scene `{target}` deactivated.")
 
     save_to_json("last_session")
 
@@ -1622,7 +1523,7 @@ async def mf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             index = int(context.args[0]) - 1
             if 0 <= index < len(good_models):
                 CURRENT_MODEL = good_models[index]
-                await reply_and_log(update, f"🧠 Switched to accessible model: `{CURRENT_MODEL}`")
+                await reply_transient(update, context, f"🧠 Switched to accessible model: `{CURRENT_MODEL}`")
                 save_to_json("last_session")
             else:
                 await reply_and_log(update, "❌ Invalid model number.")
@@ -1641,7 +1542,7 @@ async def mf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     new_idx = (curr_idx - 1) % len(good_models)
 
                 CURRENT_MODEL = good_models[new_idx]
-                await reply_and_log(update, f"🧠 Switched to accessible model: `{CURRENT_MODEL}`")
+                await reply_transient(update, context, f"🧠 Switched to accessible model: `{CURRENT_MODEL}`")
                 save_to_json("last_session")
             else:
                 await reply_and_log(update, "❌ Usage: `.mf [number/next/prev]`")
@@ -1665,7 +1566,6 @@ LAZY_COMMAND_MAP = {
     "recap": recap_command, "story": story_command, "store": story_command,
     "last": last_command, "l": last_command, "ask": ask_command,
     "mode": mode_command, "mo": mode_command,
-    "msg": msg_command,
     "status": status_command, "s": s_command,
     "resend": resend_last_message, "char": char_command,
     "scene": scene_command, "sc": scene_command,
@@ -1731,8 +1631,6 @@ def main():
     app.add_handler(PrefixHandler(".", "l", last_command))
     app.add_handler(PrefixHandler(".", "ask", ask_command))
     app.add_handler(PrefixHandler(".", "mode", mode_command))
-    app.add_handler(PrefixHandler(".", "mo", mode_command))
-    app.add_handler(PrefixHandler(".", "msg", msg_command))
     app.add_handler(PrefixHandler(".","status", status_command))
     app.add_handler(PrefixHandler(".","s", s_command))
     app.add_handler(PrefixHandler(".", "resend", resend_last_message))

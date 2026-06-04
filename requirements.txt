@@ -1,4 +1,2 @@
-google-genai
-ollama==0.6.1
-python-telegram-bot==22.7
-python-dotenv
+ollama>=0.4.7
+python-telegram-bot>=21.10

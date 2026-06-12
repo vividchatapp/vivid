@@ -458,9 +458,10 @@ async def list_models(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for i, m in enumerate(models):
             size_bytes = getattr(m, 'size', 0)
             size_gb = size_bytes / (1024**3)
+            active = " ✅" if m.model == CURRENT_MODEL else ""
             
             # Using m.model since that is the attribute that works for you
-            model_list.append(f"{i+1}) `{m.model}` ({size_gb:.2f} GB)")
+            model_list.append(f"{i+1}) `{m.model}` ({size_gb:.2f} GB){active}")
         
         display = provider_display_info.get(CURRENT_PROVIDER, CURRENT_PROVIDER)
         text = f"🤖 **`{display}` Models:**\n" + "\n".join(model_list)
@@ -1518,8 +1519,8 @@ async def mf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not context.args:
             text = f"✨ **Accessible Models (`{display_name}`):**\n"
             for i, name in enumerate(good_models):
-                active = "🔹" if name == CURRENT_MODEL else ""
-                text += f"{i+1}. `{name}` {active}\n"
+                active = " ✅" if name == CURRENT_MODEL else ""
+                text += f"{i+1}. `{name}`{active}\n"
             await reply_and_log(update, text)
             return
 

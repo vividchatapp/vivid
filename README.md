@@ -89,7 +89,8 @@ Update the env.json file with the following information:
    - `VIVID_PREFIX`: The default bot identifier (must match a key in `TELEGRAM_TOKENS` this can be anything you want, default 'vivid1').
    - `TELEGRAM_TOKENS`: A map of prefixes to bot tokens (get tokens from `@BotFather` using  `/newbot` or `/mybots` command).
    - `OLLAMA_ONLINE`: API keys and descriptions for hosted Ollama-compatible services keys can be found at [https://ollama.com/settings/keys](https://ollama.com/settings/keys) choose `Add API key` button when it is generated paste it to the `api_key` field. You can have multiple keys but that would require multiple accounts. This is handy because Ollama online has usage limits, but since your chat data is stored on your local computer you can just select a different account to continue.
-   - `OLLAMA_LOCAL`: IP/host URLs for instances running on a local computer.
+   - `OLLAMA_LOCAL`: IP/host URLs for instances running on a local computer. Since many users may not be running local instances, the `"show_on_provider_list"` flag is set to `false` by default, so they are not listed in the `.provider` command unless manually enabled by setting it to `true`.
+
 ---
 
 ### 5. Run/Restart vivid.py

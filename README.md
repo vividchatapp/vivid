@@ -27,7 +27,23 @@ For quick installation guides for Windows or Linux / macOS please go to the [Viv
 - [▶️ Windows Installation Guide](https://www.youtube.com/@VividChatApp)
 - [▶️ Linux / macOS Installation Guide](https://www.youtube.com/@VividChatApp)
 
-### 1. Clone the Repository or download the zip (below)
+### 1. Verify Python Installation
+Before setting up the bot, ensure you have **Python 3.10 or higher** installed. 
+
+#### **How to check:**
+*   **Windows**: Open Command Prompt or PowerShell and type:
+   ```powershell
+   python --version
+   ```
+*   **Linux / macOS**: Open your terminal and type:
+   ```bash
+   python3 --version
+   ```
+#### **Troubleshooting:**
+*   **"Command not found":** This usually means Python is not installed or the installer didn't add it to your system's `PATH`. If reinstalling on Windows, make sure to check the box that says **"Add Python to PATH"**.
+*   **Version < 3.10:** Vivid Chat requires features from newer versions of Python. Please update your installation from python.org.
+
+### 2. Clone the Repository or Download the ZIP
 ```bash
 git clone https://github.com/vividchatapp/vivid
 cd vivid

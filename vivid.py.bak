@@ -15,7 +15,6 @@ from pathlib import Path
 from telegram import Update
 from telegram.ext import Application, PrefixHandler, MessageHandler, filters, ContextTypes
 from ollama import AsyncClient
-import httpx
 
 # --- INITIALIZATION ---
 BASE_DIR = Path(__file__).resolve().parent
@@ -130,11 +129,6 @@ AI_PROVIDERS = PROVIDER_CATEGORIES["local"] + PROVIDER_CATEGORIES["online"]
 # Stores {provider_name: {model_name: "good"|"bad"|"unknown"}} for Ollama online models
 FILTERED_OLLAMA_MODELS_STATUS = {}
 
-# Tracks Telegram message IDs for UI operations (clean, etc.).
-# Decoupled from chat_history which is strictly for the LLM context.
-ui_message_tracker = []
-chat_history = []
-
 # --- HELPERS ---
 def load_ollama_models_status():
     """Loads the ollama_models.json file from the settings directory."""
@@ -171,38 +165,27 @@ VERBOSE_MODE = False
 TRACE_MODE = False
 LAZY_MODE = False
 def save_to_json(name):
-    """
-    Saves the current session to two separate files in CHATS_DIR:
-      [name].json      - contains only the chat_history array (pure LLM context).
-      [name]_meta.json - contains session metadata (model, role, scenes, etc.).
-    """
-    base_name = f"{VIVID_PREFIX}_{name}" if name == "last_session" else name
-    history_path = CHATS_DIR / f"{base_name}.json"
-    meta_path = CHATS_DIR / f"{base_name}_meta.json"
-
-    meta = {
-        "model": CURRENT_MODEL,
-        "role": CURRENT_ROLE,
-        "provider": CURRENT_PROVIDER,
-        "context_limit": CONTEXT_LIMIT,
-        "mode": CURRENT_MODE,
-        "active_characters": ACTIVE_CHARACTERS,
-        "active_scenes": ACTIVE_SCENES,
-        "num_ctx": GENERATION_OPTIONS.get("num_ctx", 4096),
-        "lazy_mode": LAZY_MODE
+    """Saves the current chat_history to a JSON file in the CHATS_DIR."""
+    filename = f"{VIVID_PREFIX}_{name}.json" if name == "last_session" else f"{name}.json"
+    file_path = CHATS_DIR / filename
+    data = {
+        "metadata": {
+            "model": CURRENT_MODEL,
+            "role": CURRENT_ROLE,
+            "provider": CURRENT_PROVIDER,
+            "context_limit": CONTEXT_LIMIT,
+            "mode": CURRENT_MODE,
+            "active_characters": ACTIVE_CHARACTERS,
+            "active_scenes": ACTIVE_SCENES,
+            "num_ctx": GENERATION_OPTIONS.get("num_ctx", 4096),
+            "lazy_mode": LAZY_MODE
+        },
+        "history": chat_history
     }
-
-    # Write history (pure LLM messages only)
-    temp_history = history_path.with_suffix(".tmp")
-    with open(temp_history, 'w', encoding='utf-8') as f:
-        json.dump(chat_history, f, indent=4, ensure_ascii=False)
-    temp_history.replace(history_path)
-
-    # Write metadata
-    temp_meta = meta_path.with_suffix(".tmp")
-    with open(temp_meta, 'w', encoding='utf-8') as f:
-        json.dump(meta, f, indent=4, ensure_ascii=False)
-    temp_meta.replace(meta_path)
+    temp_path = file_path.with_suffix(".tmp")
+    with open(temp_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+    temp_path.replace(file_path)
 
 async def generate_response(messages, options=None):
     """Centralized helper to call the appropriate LLM provider."""
@@ -219,128 +202,81 @@ async def generate_response(messages, options=None):
 def load_from_json(name):
     """
     Loads a conversation history from CHATS_DIR.
-    Supports the new split-file format ([name].json + [name]_meta.json) and
-    the legacy single-file format ({ "history": [...], "metadata": {...} }).
+    Supports both new shared naming and legacy prefixed naming.
     Returns True if successful, False otherwise.
     """
     global chat_history, CURRENT_MODEL, CURRENT_ROLE, CURRENT_PROVIDER, CONTEXT_LIMIT, ACTIVE_CHARACTERS, ACTIVE_SCENES, CURRENT_MODE, LAZY_MODE
     clean_name = name.replace(".json", "")
+    # Try to load without prefix first (new shared style), fallback to prefix for legacy
+    file_path = (CHATS_DIR / f"{clean_name}.json").resolve()
+    if not file_path.exists():
+        file_path = (CHATS_DIR / f"{VIVID_PREFIX}_{clean_name}.json").resolve()
 
-    # Resolve base file name (support legacy prefix)
-    base_name = clean_name
-    history_path = (CHATS_DIR / f"{base_name}.json").resolve()
-    if not history_path.exists():
-        base_name = f"{VIVID_PREFIX}_{clean_name}"
-        history_path = (CHATS_DIR / f"{base_name}.json").resolve()
-
-    if not history_path.exists():
-        return False
-
-    try:
-        with open(history_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-
-        # --- New split-file format: history file contains a plain list ---
-        if isinstance(data, list):
-            chat_history = data
-            # Load metadata from companion _meta.json if it exists
-            meta_path = (CHATS_DIR / f"{base_name}_meta.json").resolve()
-            if meta_path.exists():
-                with open(meta_path, 'r', encoding='utf-8') as mf:
-                    meta = json.load(mf)
-                CURRENT_MODEL = meta.get("model", CURRENT_MODEL)
-                CURRENT_ROLE = meta.get("role", CURRENT_ROLE)
-                CURRENT_PROVIDER = meta.get("provider", CURRENT_PROVIDER)
-                CONTEXT_LIMIT = meta.get("context_limit", CONTEXT_LIMIT)
-                CURRENT_MODE = meta.get("mode", "chat")
-                ACTIVE_CHARACTERS = meta.get("active_characters", [])
-                ACTIVE_SCENES = meta.get("active_scenes", [])
-                LAZY_MODE = meta.get("lazy_mode", False)
-                if "num_ctx" in meta:
-                    GENERATION_OPTIONS["num_ctx"] = meta["num_ctx"]
-            return True
-
-        # --- Legacy single-file format: { "history": [...], "metadata": {...} } ---
-        if isinstance(data, dict) and "history" in data:
-            chat_history = data["history"]
-            # Strip any legacy UI keys from history entries so the LLM context stays pure
-            for msg in chat_history:
-                msg.pop("msg_ids", None)
-                msg.pop("is_command", None)
-                msg.pop("incoming", None)
-            meta = data.get("metadata", {})
-            CURRENT_MODEL = meta.get("model", CURRENT_MODEL)
-            CURRENT_ROLE = meta.get("role", CURRENT_ROLE)
-            CURRENT_PROVIDER = meta.get("provider", CURRENT_PROVIDER)
-            CONTEXT_LIMIT = meta.get("context_limit", CONTEXT_LIMIT)
-            CURRENT_MODE = meta.get("mode", "chat")
-            ACTIVE_CHARACTERS = meta.get("active_characters", [])
-            ACTIVE_SCENES = meta.get("active_scenes", [])
-            LAZY_MODE = meta.get("lazy_mode", False)
-            if "num_ctx" in meta:
-                GENERATION_OPTIONS["num_ctx"] = meta["num_ctx"]
-            return True
-
-        # Fallback: plain list without wrapper (very old format)
-        chat_history = data
-        return True
-
-    except Exception as e:
-        print(f"ERROR reading JSON: {e}")
-        return False
-
-async def reply_and_log(update, text, *args, **kwargs):
-    # Split text into paragraphs
-    paragraphs = text.split('\n\n')
-    current_message = ""
-    
-    async def send_chunk(content):
+    if file_path.exists():
         try:
-            return await update.message.reply_text(content, parse_mode='Markdown')
-        except Exception:
-            # Fallback to plain text if Markdown parsing fails (e.g. due to unescaped special characters)
-            return await update.message.reply_text(content)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, dict) and "history" in data:
+                    chat_history = data["history"]
+                    meta = data.get("metadata", {})
+                    CURRENT_MODEL = meta.get("model", CURRENT_MODEL)
+                    CURRENT_ROLE = meta.get("role", CURRENT_ROLE)
+                    CURRENT_PROVIDER = meta.get("provider", CURRENT_PROVIDER)
+                    CONTEXT_LIMIT = meta.get("context_limit", CONTEXT_LIMIT)
+                    CURRENT_MODE = meta.get("mode", "chat")
+                    ACTIVE_CHARACTERS = meta.get("active_characters", [])
+                    ACTIVE_SCENES = meta.get("active_scenes", [])
+                    LAZY_MODE = meta.get("lazy_mode", False)
+                    if "num_ctx" in meta:
+                        GENERATION_OPTIONS["num_ctx"] = meta["num_ctx"]
+                else:
+                    chat_history = data
+                return True
+        except Exception as e:
+            print(f"❌ Error reading JSON: {e}")
+            return False
+    return False
 
-    for para in paragraphs:
-        # Check if adding this paragraph exceeds the limit
-        if len(current_message) + len(para) + 2 > 4000:
-            # Send current chunk and track its ID
-            sent_msg = await send_chunk(current_message)
-            ui_message_tracker.append(sent_msg.message_id)
-            current_message = para + "\n\n"
-        else:
-            current_message += para + "\n\n"
-            
-    # Send the final chunk and track its ID
-    if current_message:
-        sent_msg = await send_chunk(current_message.strip())
-        ui_message_tracker.append(sent_msg.message_id)
+async def reply_and_log(update: Update, text: str, is_command=True):
+    """Helper to send a message, capture IDs, and log to history for session persistence."""
+    user_msg_id = update.message.message_id
 
+    # Ensure the user's command is logged if it hasn't been already
+    already_logged = any(user_msg_id in m.get("msg_ids", []) for m in chat_history[-2:])
+    if not already_logged:
+        chat_history.append({
+            "role": "user", "content": update.message.text,
+            "msg_ids": [user_msg_id], "is_command": True, "incoming": True
+        })
+    
+    sent_ids = []
+    for i in range(0, len(text), 4000):
+        sent_msg = await update.message.reply_text(text[i:i+4000], parse_mode='Markdown')
+        sent_ids.append(sent_msg.message_id)
+    
+    chat_history.append({
+        "role": "assistant", "content": text, 
+        "msg_ids": sent_ids, "is_command": is_command
+    })
+    save_to_json("last_session")
 
 async def reply_transient(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, delay: int = 5):
     """Sends a message that deletes itself after a delay and is NOT logged to history."""
     try:
-        # Track the trigger command message ID before deleting it
-        user_msg_id = update.message.message_id
-        if user_msg_id not in ui_message_tracker:
-            ui_message_tracker.append(user_msg_id)
-
         # Physically remove the trigger command from the Telegram screen for a clean UI
         try: await update.message.delete()
         except: pass
         
         sent_msg = await update.message.reply_text(text, parse_mode='Markdown')
-        ui_message_tracker.append(sent_msg.message_id)
-
         async def _delete():
-            await asyncio.sleep(delay)
+            await asyncio   leep(delay)
             try:
                 await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=sent_msg.message_id)
             except:
                 pass
         asyncio.create_task(_delete())
     except Exception as e:
-        print(f"WARNING: Failed to send transient reply: {e}")
+        print(f"⚠️ Failed to send transient reply: {e}")
 
 def get_role_content(role_name):
     """
@@ -402,9 +338,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• `.char all off` - Deactivate all characters\n"
         "• `.char edit [n]` - Get character bio to edit\n"
         "• `.char save [name] [text]` - Save character bio\n\n"
-        "**🎦 Scenes**\n"
+        "**🎬 Scenes**\n"
         "• `.scene` - List scenes\n"
-        "• `.scene 1 -2 3` - Multi-toggle scenes (prefix `-` to remove)\n"
+        "• `.scene [n/name] on/off` - Toggle scene settings\n"
         "• `.scene all off` - Deactivate all scenes\n"
         "• `.scene edit [n]` - Get scene description to edit\n"
         "• `.scene save [name] [text]` - Save scene description\n\n"
@@ -416,7 +352,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• `.model pull [name]` - Pull a model\n"
         "• `.model test` - Test online models for subscription requirements\n"
         "• `.mf [n/next/prev]` - List or cycle accessible models\n"
-        "• `.mnsfw [n/next/prev]` - List or cycle NSFW models from URL\n"
         "• `.model rm [n]` - Remove a model\n"
         "• `.model loaded` - Sync with RAM\n"
         "• `.think` - Toggle Think Mode\n\n"
@@ -760,26 +695,25 @@ async def chat_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != TELEGRAM_USER_ID:
         return
 
-    global chat_history, ui_message_tracker
-    words = update.message.text.lower().split() if update.message.text else []
-    first_word = words[0] if words else ""
+    global chat_history
+    first_word = update.message.text.lower().split()[0] if update.message.text else ""
     is_clear = first_word in [".clear", "clear"]
     is_clean = first_word in [".clean", ".cl", "clean", "cl"]
 
     if is_clear or is_clean:
         if is_clean:
             chat_id = update.effective_chat.id
-            # Physically delete messages from Telegram UI using ui_message_tracker
-            for mid in reversed(ui_message_tracker):
-                try: await context.bot.delete_message(chat_id=chat_id, message_id=mid)
-                except: pass
-            ui_message_tracker.clear()
+            # Physically delete messages from Telegram UI (Bottom-to-Top)
+            for msg in reversed(chat_history[1:]):
+                for mid in reversed(msg.get("msg_ids", [])):
+                    try: await context.bot.delete_message(chat_id=chat_id, message_id=mid)
+                    except: pass
 
-        # Reset history to only the system prompt (pure LLM format, no extra keys)
+        # Reset history to only the system prompt
         if chat_history and chat_history[0]["role"] == "system":
-            chat_history = [{"role": "system", "content": chat_history[0]["content"]}]
+            chat_history = [chat_history[0]]
         else:
-            chat_history = [{"role": "system", "content": get_role_content(CURRENT_ROLE)}]
+            chat_history = [{"role": "system", "content": get_role_content(CURRENT_ROLE), "msg_ids": [], "is_command": False}]
 
         save_to_json("last_session")
 
@@ -793,11 +727,7 @@ async def chat_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("📂 No saved chats found.")
             return
         
-        # Exclude _meta.json files and last_session entries from the listing
-        chat_names = [
-            f.stem for f in files
-            if "last_session" not in f.name and not f.stem.endswith("_meta")
-        ]
+        chat_names = [f.stem for f in files if "last_session" not in f.name]
         text = "📂 **Saved Chats on Disk:**\n" + "\n".join([f"• `{name}`" for name in chat_names])
         await update.message.reply_text(text, parse_mode='Markdown')
         await reply_and_log(update, text)
@@ -818,9 +748,7 @@ async def chat_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 for msg in recent:
                     icon = "👤" if msg.get('role') == 'user' else "🤖"
                     text = f"{icon} {msg.get('content', '')}"
-                    await reply_and_log(update, text)
-        else:
-            await reply_and_log(update, f"❌ Failed to load `{context.args[1]}`. Check if the file exists.")
+                    await reply_and_log(update, text, is_command=True)
 
 async def resend_last_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -842,10 +770,13 @@ async def resend_last_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         if chat_history[i]["role"] == "user":
             last_user_msg = chat_history[i]["content"]
             # Remove it so handle_message doesn't create a duplicate in history
-            chat_history.pop(i)
-            # Also remove the bot's following response if it exists
+            msg_to_resend = chat_history.pop(i)
+            # Also remove and physically delete the bot's following response if it exists
             if i < len(chat_history) and chat_history[i]["role"] == "assistant":
-                chat_history.pop(i)
+                bot_msg = chat_history.pop(i)
+                for mid in bot_msg.get("msg_ids", []):
+                    try: await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=mid)
+                    except: pass
             break
             
     if last_user_msg:
@@ -875,18 +806,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE, inc
 
     global LAST_LATENCY, TOTAL_MESSAGES_SENT, chat_history, ACTIVE_CHARACTERS, ACTIVE_SCENES, LAZY_MODE
     start_time = time.time()
+    user_id = str(update.effective_user.id)
     
     # Use the provided text (for resends) or the actual message text
     prompt = incoming_text if incoming_text else update.message.text
 
     if not prompt:
         return
-
-    # Track the incoming message ID in the UI tracker
-    if not incoming_text and update.message:
-        user_msg_id = update.message.message_id
-        if user_msg_id not in ui_message_tracker:
-            ui_message_tracker.append(user_msg_id)
 
     # --- LAZY MODE COMMAND CHECK ---
     if LAZY_MODE and not prompt.startswith("."):
@@ -923,28 +849,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE, inc
     if scene_blocks:
         full_system_prompt += "\n\nCURRENT SCENE SETTING:\n" + "\n\n".join(scene_blocks)
 
-    # In story mode, the user's prompt is used as context for generating the next
-    # narrative passage but is NOT appended to chat_history — only the assistant's
-    # response is stored, keeping the history as a clean sequence of story beats.
-    if CURRENT_MODE != "story":
-        chat_history.append({"role": "user", "content": prompt})
-
+    # Track ID for the user's incoming prompt
+    user_entry = {"role": "user", "content": prompt, "is_command": False}
+    if not incoming_text: 
+        user_entry["msg_ids"] = [update.message.message_id]
+    chat_history.append(user_entry)
     save_to_json("last_session")
     
     history_subset = chat_history[1:][-CONTEXT_LIMIT:]
 
     if CURRENT_MODE == "story":
-        # Only narrative assistant responses are included in the payload.
-        # The current user prompt is appended at the end to guide the next beat.
-        narrative_assistants = [m for m in history_subset if m["role"] == "assistant"]
-        payload = (
-            [{"role": "system", "content": full_system_prompt}]
-            + narrative_assistants
-            + [{"role": "user", "content": prompt}]
-        )
+        # Filter: Only narrative assistant responses (not command outputs)
+        narrative_assistants = [m for m in history_subset[:-1] if m["role"] == "assistant" and not m.get("is_command")]
+        payload = [{"role": "system", "content": full_system_prompt}] + narrative_assistants + [history_subset[-1]]
     else:
-        # Chat mode: full alternating history is sent to the LLM.
-        payload = [{"role": "system", "content": full_system_prompt}] + history_subset
+        # Chat mode: AI sees history, but we still exclude meta-command logs
+        clean_history = [m for m in history_subset if not m.get("is_command")]
+        payload = [{"role": "system", "content": full_system_prompt}] + clean_history
+
+    # Sanitize payload: LLMs only want 'role' and 'content'
+    api_payload = [{"role": m["role"], "content": m["content"]} for m in payload]
 
     if TRACE_MODE:
         try:
@@ -952,13 +876,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE, inc
             with open(trace_file, 'w', encoding='utf-8') as f:
                 json.dump(payload, f, indent=4, ensure_ascii=False)
         except Exception as e:
-            print(f"Trace failed: {e}")
+            print(f"❌ Trace failed: {e}")
 
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
-        # Use centralized helper — payload is already clean (role + content only)
-        reply = await generate_response(payload)
+        # Use centralized helper
+        reply = await generate_response(api_payload)
 
         if TRACE_MODE:
             try:
@@ -966,21 +890,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE, inc
                 with open(resp_file, 'w', encoding='utf-8') as f:
                     json.dump({"response": reply, "provider": CURRENT_PROVIDER, "model": CURRENT_MODEL}, f, indent=4, ensure_ascii=False)
             except Exception as e:
-                print(f"Response Trace failed: {e}")
+                print(f"❌ Response Trace failed: {e}")
 
         LAST_LATENCY = round(time.time() - start_time, 2)
         TOTAL_MESSAGES_SENT += 1
 
+        sent_ids = []
         for i in range(0, len(reply), 4000):
-            chunk = reply[i:i+4000]
-            try:
-                sent_msg = await update.message.reply_text(chunk, parse_mode='Markdown')
-            except Exception:
-                sent_msg = await update.message.reply_text(chunk)
-            ui_message_tracker.append(sent_msg.message_id)
+            sent_msg = await update.message.reply_text(reply[i:i+4000], parse_mode='Markdown')
+            sent_ids.append(sent_msg.message_id)
 
-        # Append assistant response to history (always, in both modes)
-        chat_history.append({"role": "assistant", "content": reply})
+        chat_history.append({"role": "assistant", "content": reply, "msg_ids": sent_ids, "is_command": False})
         save_to_json("last_session")
 
         if VERBOSE_MODE:
@@ -992,8 +912,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE, inc
             v_text = f"Status: {latency_str}, {len(payload)}msg, {size_kb}kb"
             await update.message.reply_text(v_text, parse_mode='Markdown')
     except Exception as e:
-        await update.message.reply_text(f"Error: {e}")
-        
+        await update.message.reply_text(f"❌ Error: {e}")
         
 async def toggle_think(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Toggles 'Think Mode' for Ollama models (adds <think> logic to options)."""
@@ -1099,48 +1018,22 @@ async def mode_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await reply_and_log(update, "❌ Invalid mode. Use `.mode chat` or `.mode story`.")
 
 async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global ui_message_tracker
+    """
+    Asks a question about the conversation history.
+    Does not include roles, characters, or scenes.
+    The question and result are not saved to context.
+    """
     if update.effective_user.id != TELEGRAM_USER_ID:
         return
 
-    # 1. Track the user's ".ask [question]" message ID so it can be cleaned
-    user_msg_id = update.message.message_id
-    if user_msg_id not in ui_message_tracker:
-        ui_message_tracker.append(user_msg_id)
-
     if not context.args:
-        sent_msg = await update.message.reply_text("❌ Please provide a question. Usage: `.ask [your question]`")
-        ui_message_tracker.append(sent_msg.message_id)
+        await reply_and_log(update, "❌ Usage: `.ask [question]`")
         return
 
     question = " ".join(context.args)
-
-    # Show a temporary message saying "thinking..."
-    thinking_msg = await update.message.reply_text("thinking...")
-
-    # 2. Build a neutral payload using the ongoing conversation history (context)
-    # Exclude system persona at index 0
+    # Prepare neutral payload (exclude system persona at index 0)
     history_subset = chat_history[1:][-CONTEXT_LIMIT:]
-
-    char_blocks = []
-    for char_name in ACTIVE_CHARACTERS:
-        content = get_character_content(char_name)
-        if content:
-            char_blocks.append(f"--- CHARACTER: {char_name} ---\n{content}")
-
-    scene_blocks = []
-    for scene_name in ACTIVE_SCENES:
-        content = get_scene_content(scene_name)
-        if content:
-            scene_blocks.append(f"--- SCENE/LOCATION: {scene_name} ---\n{content}")
-
-    system_content = "You are a helpful assistant. Use the conversation history provided to answer the user's question accurately. Do not adopt any persona."
-    if char_blocks:
-        system_content += "\n\nACTIVE CHARACTERS IN SCENE:\n" + "\n\n".join(char_blocks)
-    if scene_blocks:
-        system_content += "\n\nCURRENT SCENE SETTING:\n" + "\n\n".join(scene_blocks)
-
-    payload = [{"role": "system", "content": system_content}]
+    payload = [{"role": "system", "content": "You are a helpful assistant. Use the conversation history provided to answer the user's question accurately. Do not adopt any persona."}]
     payload.extend(history_subset)
     payload.append({"role": "user", "content": question})
 
@@ -1158,7 +1051,7 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
-        # 3. Generate response using your standard centralized runner
+        # Use centralized helper
         reply = await generate_response(api_payload)
 
         if TRACE_MODE:
@@ -1168,30 +1061,12 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     json.dump({"response": reply, "provider": CURRENT_PROVIDER, "model": CURRENT_MODEL}, f, indent=4, ensure_ascii=False)
             except Exception as e:
                 print(f"❌ Response Trace failed: {e}")
-        
-        # Remove the temporary thinking message
-        try:
-            await thinking_msg.delete()
-        except Exception:
-            pass
-        
-        # 4. Reply to the user and ensure ALL fragments are tracked for UI clearing
-        for i in range(0, len(reply), 4000):
-            chunk = reply[i:i+4000]
-            try:
-                sent_msg = await update.message.reply_text(chunk, parse_mode='Markdown')
-            except Exception:
-                sent_msg = await update.message.reply_text(chunk)
-            ui_message_tracker.append(sent_msg.message_id)
 
+        header = f"❓ **Ask:** {question}\n\n💡 **Answer:**\n"
+        full_response = header + reply
+        await reply_and_log(update, full_response, is_command=True)
     except Exception as e:
-        # If it fails, we still want to remove the thinking message
-        try:
-            await thinking_msg.delete()
-        except Exception:
-            pass
-        sent_msg = await update.message.reply_text(f"Error handling request: {e}")
-        ui_message_tracker.append(sent_msg.message_id)
+        await reply_and_log(update, f"❌ Ask failed: {e}")
 
 async def delete_last_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -1209,7 +1084,10 @@ async def delete_last_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     chat_id = update.effective_chat.id
     for _ in range(2):
         if len(chat_history) > 1:
-            chat_history.pop()
+            msg = chat_history.pop()
+            for mid in msg.get("msg_ids", []):
+                try: await context.bot.delete_message(chat_id=chat_id, message_id=mid)
+                except: pass
 
     await reply_and_log(update, "🗑️ Deleted last entries from history and chat.")
 
@@ -1282,30 +1160,14 @@ async def role_summary_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 async def story_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Manages story files in STORIES_DIR.
-    - No args: Lists all existing .txt story files.
-    - 'save [name]': Extracts all assistant messages from the current chat history
-      and saves them as a plain text story file.
-    Usage: .story | .story save [name]
+    Extracts all assistant messages from the current chat history 
+    and saves them as a plain text story file.
+    Usage: .story save [name] or .store save [name]
     """
     if update.effective_user.id != TELEGRAM_USER_ID:
         return
 
-    # No arguments: list existing story files instead of showing an error
-    if not context.args:
-        story_files = sorted(STORIES_DIR.glob("*.txt"))
-        if not story_files:
-            await reply_and_log(update, "📂 No story files found in the stories directory.")
-            return
-        text = "📖 **Saved Stories:**\n"
-        for i, sf in enumerate(story_files):
-            size_kb = round(sf.stat().st_size / 1024, 1)
-            text += f"{i+1}. `{sf.stem}` ({size_kb} KB)\n"
-        text += "\nUse `.story save [name]` to save the current session as a story."
-        await reply_and_log(update, text)
-        return
-
-    if context.args[0].lower() != "save" or len(context.args) < 2:
+    if not context.args or context.args[0].lower() != "save" or len(context.args) < 2:
         await reply_and_log(update, "❌ Usage: `.story save [name]`")
         return
 
@@ -1392,9 +1254,6 @@ async def last_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args:
         try:
             n = int(context.args[0])
-            if n <= 0:
-                await reply_and_log(update, "❌ Please specify a positive number.")
-                return
         except ValueError:
             await reply_and_log(update, "❌ Usage: `.last [n]` where n is a number.")
             return
@@ -1492,18 +1351,8 @@ async def char_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def scene_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Manages active scene/location descriptions.
-
-    Usage:
-      .scene                    - List all scenes with on/off status.
-      .scene 1 -2 3             - Multi-toggle: add scene 1 & 3, remove scene 2.
-      .scene tavern -forest     - Multi-toggle by name.
-      .scene all off            - Deactivate all scenes.
-      .scene edit [n]           - Get scene description to edit.
-      .scene save [name] [text] - Save scene description.
-
-    Any argument prefixed with '-' removes that scene from ACTIVE_SCENES.
-    Any argument without '-' adds that scene to ACTIVE_SCENES.
+    Manages active scene/location descriptions. 
+    Usage: .scene (list), .scene [n] on, .scene [n] off, .scene off all
     """
     if update.effective_user.id != TELEGRAM_USER_ID:
         return
@@ -1519,12 +1368,12 @@ async def scene_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for i, name in enumerate(available_scenes):
             status = "✅ (ON)" if name in ACTIVE_SCENES else "❌ (OFF)"
             text += f"{i+1}. `{name}` {status}\n"
-        text += "\nUse `.scene [1 -2 3]` to multi-toggle, or `.scene all off`"
+        text += "\nUse `.scene [n] on/off` or `.scene all off`"
         await reply_and_log(update, text)
         return
 
     arg1 = context.args[0].lower()
-
+    
     if arg1 == "all" and len(context.args) > 1 and context.args[1].lower() == "off":
         ACTIVE_SCENES = []
         await update.message.reply_text("🧹 All scenes deactivated.")
@@ -1551,59 +1400,27 @@ async def scene_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await reply_and_log(update, "❌ Use `.scene edit [number]`")
             return
 
-    # --- Multi-toggle: loop through all args ---
-    added = []
-    removed = []
+    target = None
+    if arg1.isdigit():
+        idx = int(arg1) - 1
+        if 0 <= idx < len(available_scenes):
+            target = available_scenes[idx]
+    elif arg1 in available_scenes:
+        target = arg1
 
-    for raw_arg in context.args:
-        # Determine if this is a removal (prefixed with '-')
-        if raw_arg.startswith("-"):
-            token = raw_arg[1:]  # strip the leading '-'
-            remove = True
-        else:
-            token = raw_arg
-            remove = False
+    if not target:
+        await reply_and_log(update, "❌ Scene not found.")
+        return
 
-        # Resolve token to a scene name (by index or by name)
-        target = None
-        token_lower = token.lower()
-        if token.isdigit():
-            idx = int(token) - 1
-            if 0 <= idx < len(available_scenes):
-                target = available_scenes[idx]
-        elif token_lower in available_scenes:
-            target = token_lower
-        else:
-            # Try case-insensitive match
-            for s in available_scenes:
-                if s.lower() == token_lower:
-                    target = s
-                    break
-
-        if target is None:
-            continue  # Skip unrecognised tokens silently
-
-        if remove:
-            if target in ACTIVE_SCENES:
-                ACTIVE_SCENES.remove(target)
-                removed.append(target)
-        else:
-            if target not in ACTIVE_SCENES:
-                ACTIVE_SCENES.append(target)
-                added.append(target)
+    action = context.args[1].lower() if len(context.args) > 1 else "on"
+    if action == "on":
+        if target not in ACTIVE_SCENES: ACTIVE_SCENES.append(target)
+        await reply_transient(update, context, f"🎬 Scene `{target}` activated.")
+    elif action == "off":
+        if target in ACTIVE_SCENES: ACTIVE_SCENES.remove(target)
+        await reply_transient(update, context, f"🎬 Scene `{target}` deactivated.")
 
     save_to_json("last_session")
-
-    # Build a compact status reply
-    parts = []
-    if added:
-        parts.append("✅ Added: " + ", ".join(f"`{s}`" for s in added))
-    if removed:
-        parts.append("❌ Removed: " + ", ".join(f"`{s}`" for s in removed))
-    if not parts:
-        parts.append("ℹ️ No changes made (scenes already in requested state or not found).")
-
-    await reply_transient(update, context, "\n".join(parts))
 
 async def test_ollama_models(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -1737,84 +1554,6 @@ async def mf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await reply_and_log(update, f"❌ Failed to list models: {e}")
 
-async def mnsfw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Lists and allows selection of good NSFW models fetched from a remote URL."""
-    global CURRENT_MODEL
-    if update.effective_user.id != TELEGRAM_USER_ID: return
-    if "online" not in CURRENT_PROVIDER:
-        await reply_and_log(update, "⚠️ The `.mnsfw` command is only applicable to `OLLAMA_ONLINE` providers.")
-        return
-
-    # 1. Fetch NSFW model names from URL
-    url = "https://raw.githubusercontent.com/vividchatapp/vivid-data/refs/heads/main/good_nsfw_roles.txt"
-    try:
-        async with httpx.AsyncClient() as client:
-            r = await client.get(url, timeout=10.0)
-            r.raise_for_status()
-            nsfw_data = r.text
-    except Exception as e:
-        await reply_and_log(update, f"❌ Failed to fetch NSFW models list: {e}")
-        return
-
-    # Parse and strip empty lines
-    nsfw_models = [line.strip() for line in nsfw_data.splitlines() if line.strip()]
-    if not nsfw_models:
-        await reply_and_log(update, "ℹ️ NSFW models list fetched from URL is empty.")
-        return
-
-    display_name = provider_display_info.get(CURRENT_PROVIDER, CURRENT_PROVIDER)
-
-    try:
-        # 2. Get models from the current OLLAMA_ONLINE provider
-        resp = await ollama_clients[CURRENT_PROVIDER].list()
-        all_models = getattr(resp, 'models', [])
-        all_models.sort(key=lambda x: x.model)
-        
-        # Filter models returned by provider to only include those in the NSFW list (case-insensitive)
-        nsfw_set = {m.lower() for m in nsfw_models}
-        good_nsfw = [m.model for m in all_models if m.model.lower() in nsfw_set]
-
-        if not good_nsfw:
-            await reply_and_log(update, f"ℹ️ No NSFW models from the list detected on `{display_name}`.")
-            return
-
-        if not context.args:
-            text = f"🔞 **NSFW Models (`{display_name}`):**\n"
-            for i, name in enumerate(good_nsfw):
-                active = " ✅" if name == CURRENT_MODEL else ""
-                text += f"{i+1}. `{name}`{active}\n"
-            await reply_and_log(update, text)
-            return
-
-        try:
-            index = int(context.args[0]) - 1
-            if 0 <= index < len(good_nsfw):
-                CURRENT_MODEL = good_nsfw[index]
-                await reply_transient(update, context, f"🧠 Switched to NSFW model: `{CURRENT_MODEL}`")
-                save_to_json("last_session")
-            else:
-                await reply_and_log(update, "❌ Invalid model number.")
-        except ValueError:
-            arg = context.args[0].lower()
-            if arg in ["next", "n", "pref", "prev", "p"]:
-                try:
-                    curr_idx = good_nsfw.index(CURRENT_MODEL)
-                except ValueError:
-                    curr_idx = -1
-
-                if arg in ["next", "n"]:
-                    new_idx = (curr_idx + 1) % len(good_nsfw)
-                else:
-                    new_idx = (curr_idx - 1) % len(good_nsfw)
-
-                CURRENT_MODEL = good_nsfw[new_idx]
-                await reply_transient(update, context, f"🧠 Switched to NSFW model: `{CURRENT_MODEL}`")
-                save_to_json("last_session")
-            else:
-                await reply_and_log(update, "❌ Usage: `.mnsfw [number/next/prev]`")
-    except Exception as e:
-        await reply_and_log(update, f"❌ Failed to list models: {e}")
-
 # --- LAZY COMMAND MAPPING ---
 # Maps command strings to their respective functions for Lazy Mode routing
 LAZY_COMMAND_MAP = {
@@ -1827,7 +1566,6 @@ LAZY_COMMAND_MAP = {
     "chat": chat_actions, "chats": chat_actions, "c": c_command,
     "rs": role_summary_command, "rolesummary": role_summary_command,
     "mf": mf_command, "modelsfiltered": mf_command,
-    "mnsfw": mnsfw_command,
     "clear": chat_actions, "clean": chat_actions, "cl": chat_actions,
     "del": delete_last_message, "context": set_context_limit,
     "recap": recap_command, "story": story_command, "store": story_command,
@@ -1844,7 +1582,7 @@ async def handle_failed_command(update: Update, context: ContextTypes.DEFAULT_TY
     Catch-all for messages starting with a dot that do not match a 
     registered command prefix.
     """
-    text = update.message.text or ""
+    text = update.message.text
     # If it starts with a dot but wasn't caught by PrefixHandlers above
     if text.startswith("."):
         error_text = (
@@ -1886,7 +1624,6 @@ def main():
     app.add_handler(PrefixHandler(".","rolesummary", role_summary_command))
     app.add_handler(PrefixHandler(".","mf", mf_command))
     app.add_handler(PrefixHandler(".","modelsfiltered", mf_command))
-    app.add_handler(PrefixHandler(".","mnsfw", mnsfw_command))
     app.add_handler(PrefixHandler(".","clear", chat_actions))
     app.add_handler(PrefixHandler(".","clean", chat_actions))
     app.add_handler(PrefixHandler(".","cl", chat_actions))
@@ -1916,7 +1653,7 @@ def main():
     # Restore the last session automatically on startup
     # Initialize chat_history here, after global variables are set up
     global chat_history
-    chat_history = [{"role": "system", "content": get_role_content(CURRENT_ROLE)}]
+    chat_history = [{"role": "system", "content": get_role_content(CURRENT_ROLE), "msg_ids": [], "is_command": False}]
     load_from_json("last_session")
     print(f"--- Bot Active (Prefix: {VIVID_PREFIX}, Token: {TELEGRAM_TOKEN}) ---")
     app.run_polling(drop_pending_updates=True)

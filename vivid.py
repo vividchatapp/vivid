@@ -1746,7 +1746,7 @@ async def mnsfw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # 1. Fetch NSFW model names from URL
-    url = "https://raw.githubusercontent.com/vividchatapp/vivid-data/refs/heads/main/good_nsfw_roles.txt"
+    url = "https://raw.githubusercontent.com/vividchatapp/vivid-data/refs/heads/main/good_nsfw_roles.txt?v=1"
     try:
         async with httpx.AsyncClient() as client:
             r = await client.get(url, timeout=10.0)
